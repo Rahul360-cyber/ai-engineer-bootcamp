@@ -216,6 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+<<<<<<< HEAD
 # Virtual environment
 .venv/
 
@@ -225,3 +226,5 @@ __pycache__/
 
 # VS Code
 .vscode/
+=======
+>>>>>>> 8b6ed9a5bcffd3368bb05216fa855a9afebb9d44
