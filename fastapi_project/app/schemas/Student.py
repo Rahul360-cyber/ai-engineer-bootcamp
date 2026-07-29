@@ -1,17 +1,32 @@
 from fastapi import APIRouter,status
 from pydantic import BaseModel,Field
 
+class address(BaseModel):
+      city : str
+      country : str
+      zipcode : str
+
+class guardian(BaseModel):
+      name : str
+      phone : int
+
 class student_info(BaseModel):
-    id : int = 1
+    id : int 
     name : str = Field (min_length = 3,max_length=10 )
     age : int =  Field (gt = 18,lt = 30 , description = "the age should be greater then 18 less then 30 ")
-    course : str | None = None
+    course : str 
+    address : address
+    guardian : guardian 
+    skills : list[str]
+    
 class studentRefinedInfo (BaseModel):
        id : int 
        name : str 
        course : str 
-       age : int 
-    
+       age : int
+       address : address
+       guardian : guardian 
+
        
 
 router = APIRouter()
