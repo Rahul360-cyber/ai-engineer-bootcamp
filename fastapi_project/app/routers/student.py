@@ -1,7 +1,7 @@
 from fastapi import APIRouter,status,Cookie,Header,Form,File,UploadFile,Depends,HTTPException, status
 from typing import Annotated,Any
 from app.schemas.Student import address,guardian,student_info,student_response
-
+from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
 async def get_api_key(x_token : Annotated[str | None ,Header()]):
       if x_token == "my_secret_key":
             return True
@@ -14,7 +14,7 @@ async def verify_user(keyverify :Annotated [Any , Depends(get_api_key)]):
             return "verified"
       else:
             return keyverify      
-router = APIRouter(prefix = "/student",tags =["student"],dependencies =[Depends(verify_user)])
+router = APIRouter(prefix = "/student",tags =["student"],dependencies=[Depends(verify_user)])
 
 async def  logging_confirmation():
       return "request received"
@@ -56,7 +56,7 @@ async def sessions(session_id: Annotated[str | None , Cookie()] = None) :
 async def read_UserAgent(user_agent : Annotated[str | None, Header()] = None  ):
       return {"User-Agent":user_agent}
 
-@router.post("/login",dependencies=[Depends(logging_confirmation)])
+@router.post("/logins",dependencies=[Depends(logging_confirmation)])
 async def authentication(username : Annotated[str | None, Form()], password : Annotated [str | None,Form()]):
       return {"message" : "login request received"}
 @router.post("/upload-photo",dependencies=[Depends(logging_confirmation)])
@@ -88,5 +88,38 @@ async def verify(Verify : Annotated[std_verificaton,Depends()]):
       results = Verify.verification()
       return {"results": results}
 
+### security part
 
-    
+fake_users = {"rahul45":{
+                 "password":"123"
+                     },
+               "rohit56":{
+                     "password":"789"},
+                "luca79":{
+                      "password":"895"}
+                }
+ouath2_scheme =  OAuth2PasswordBearer(tokenUrl="login") 
+
+@router.post("/login")
+async def login_info(form_data : Annotated[OAuth2PasswordRequestForm,Depends()]):
+      user = fake_users.get(form_data.username)
+      if form_data.username == None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,detail = "username is wrong or new signup")
+      if form_data.password != fake_users.get(user["password"]):
+            raise HTTPException(status_code =status.HTTP_422_UNPROCESSABLE_CONTENT,detail="password is wrong or new signup")
+      return {"access_token" : user,"token_type": "bearer"} 
+     
+
+          
+
+def get_user(user:str):
+      if user in fake_users:
+            return fake_users.get(user)
+
+@router.get("/me")
+async def allow_autneticated(token : Annotated [str,Depends(ouath2_scheme)]):
+      user1 = get_user(token)
+      if not user1:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="notfound username")
+      return user1
+                
