@@ -2,6 +2,13 @@ from fastapi import APIRouter,status,Cookie,Header,Form,File,UploadFile,Depends,
 from typing import Annotated,Any
 from app.schemas.Student import address,guardian,student_info,student_response
 from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
+from pwdlib import PasswordHash
+import jwt 
+from jwt.exceptions import InvalidTokenError
+from datetime import datetime, timedelta, timezone
+secret_key = "98f18646b61f3e78d3886bca1feeef22b0d6cc0fdbd6ba6a1a3ffe1b7b914473"
+ALGORITHM = "HS256"
+expire_time = 10
 async def get_api_key(x_token : Annotated[str | None ,Header()]):
       if x_token == "my_secret_key":
             return True
@@ -14,7 +21,7 @@ async def verify_user(keyverify :Annotated [Any , Depends(get_api_key)]):
             return "verified"
       else:
             return keyverify      
-router = APIRouter(prefix = "/student",tags =["student"],dependencies=[Depends(verify_user)])
+router = APIRouter(prefix = "/student",tags =["student"])
 
 async def  logging_confirmation():
       return "request received"
@@ -89,32 +96,63 @@ async def verify(Verify : Annotated[std_verificaton,Depends()]):
       return {"results": results}
 
 ### security part
-
+password_HASH = PasswordHash.recommended()
 fake_users = {"rahul45":{
-                 "password":"123"
+                 "password":password_HASH.hash("123")
                      },
                "rohit56":{
-                     "password":"789"},
+                     "password":password_HASH.hash("789")},
                 "luca79":{
-                      "password":"895"}
-                }
-ouath2_scheme =  OAuth2PasswordBearer(tokenUrl="login") 
+                      "password":password_HASH.hash("895")}
+              }
+ouath2_scheme =  OAuth2PasswordBearer(tokenUrl="/student/login") 
+
+
+
+def verify_password(plain_password,password):
+      return password_HASH.verify(plain_password,password)
+
+def get_passsword_hash():
+      for i,j in fake_users.items():
+        hash =  j["password"]
+        j["password"] = password_HASH.hash(hash)
+
+
+
+
+      
 
 @router.post("/login")
-async def login_info(form_data : Annotated[OAuth2PasswordRequestForm,Depends()]):
-      user = fake_users.get(form_data.username)
-      if form_data.username == None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,detail = "username is wrong or new signup")
-      if form_data.password != fake_users.get(user["password"]):
-            raise HTTPException(status_code =status.HTTP_422_UNPROCESSABLE_CONTENT,detail="password is wrong or new signup")
-      return {"access_token" : user,"token_type": "bearer"} 
+async def login_info(form_data : Annotated[OAuth2PasswordRequestForm,Depends()],expire_delta : timedelta | None = None):
+      passwor_d = fake_users.get(form_data.username)
+      username = form_data.username
+      if form_data.username  in fake_users:   
+         if not verify_password(form_data.password,passwor_d["password"]):
+               raise HTTPException(status_code =status.HTTP_422_UNPROCESSABLE_CONTENT,detail="password is wrong or new signup")
+      else:
+         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,detail = "username is wrong or new signup")
+      data = {"sub":username}
+      To_encode : dict[str,Any] = data.copy()
+      if expire_delta:
+            expire = datetime.now(timezone.utc) + expire_delta
+      else:
+            expire = datetime.now(timezone.utc) + timedelta(minutes=5)
+      To_encode.update({"exp": expire})
+      encoded_jwt = jwt.encode(To_encode,secret_key,algorithm=ALGORITHM)      
+      return {"access_token" :encoded_jwt,"token_type": "bearer"} 
      
 
           
 
 def get_user(user:str):
-      if user in fake_users:
-            return fake_users.get(user)
+      try:
+            payload = jwt.decode(user,secret_key,algorithms=[ALGORITHM])
+            user_n = payload.get("sub")
+            if user_n in fake_users:
+                        return user_n
+      except InvalidTokenError:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+      
 
 @router.get("/me")
 async def allow_autneticated(token : Annotated [str,Depends(ouath2_scheme)]):
@@ -122,4 +160,7 @@ async def allow_autneticated(token : Annotated [str,Depends(ouath2_scheme)]):
       if not user1:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="notfound username")
       return user1
-                
+
+@router.get("/protected")
+def get_values(details : Annotated[str,Depends(allow_autneticated)]):
+      return fake_users[details]
