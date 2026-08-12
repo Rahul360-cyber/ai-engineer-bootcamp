@@ -6,6 +6,9 @@ from pwdlib import PasswordHash
 import jwt 
 from jwt.exceptions import InvalidTokenError
 from datetime import datetime, timedelta, timezone
+from app.database.database import SessionDep
+from app.models.models import studentdb
+from sqlmodel import Field,Session, SQLModel,create_engine,select
 secret_key = "98f18646b61f3e78d3886bca1feeef22b0d6cc0fdbd6ba6a1a3ffe1b7b914473"
 ALGORITHM = "HS256"
 expire_time = 10
@@ -41,11 +44,12 @@ def pupil_id(student_id:int):
 """
 students_n =[]
 
-@router.post("/info",status_code= status.HTTP_201_CREATED,response_model = student_response)
+@router.post("/info",status_code= status.HTTP_201_CREATED)
 
-async def info_students(student_info1 : student_info):
-    std = student_info1.model_dump()
-    students_n.append(std)
+async def info_students(student_info1 : studentdb,session : SessionDep):
+    session.add(student_info1)
+    session.commit()
+    session.refresh(student_info1)
     return student_info1
 
 @router.get("/students",dependencies=[Depends(logging_confirmation)])
