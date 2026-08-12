@@ -57,6 +57,13 @@ async def nome (session :SessionDep):
         pupils = session.exec(select(studentdb)).all()
         return pupils
 
+@router.get("/students/{id}")
+async def retieve_by_id(id:int ,session : SessionDep):
+      by_id = session.get(studentdb,id)
+      if not by_id:
+            raise HTTPException(status_code=404,detail = "here not found")
+      return by_id
+
 @router.get("/profile",dependencies=[Depends(logging_confirmation)])
 async def sessions(session_id: Annotated[str | None , Cookie()] = None) :
       if session_id == None:
@@ -74,12 +81,34 @@ async def authentication(username : Annotated[str | None, Form()], password : An
 @router.post("/upload-photo",dependencies=[Depends(logging_confirmation)])
 async def file_upload(files : Annotated[list[bytes],File()],files_name : list[UploadFile]):
       return {"size":len(files),"filename":[i.filename for i in files_name] ,"content_type":[j.content_type for j in files_name]}
-      
-@router.put("/students/{id}",dependencies=[Depends(logging_confirmation)])
-async def add_id(id:int):
-      return id
+
+class studentdb_update(SQLModel):
+    name : str | None = Field(index = True)
+    age : int 
+    course : str | None = Field(index= True)
+    
+
+@router.put("/students/{id}")
+async def update_studentdb(id:int , updated_db : studentdb_update,session : SessionDep):
+      by_id1 = session.get(studentdb,id)
+      if by_id1:
+            db_updated = updated_db.model_dump()
+            by_id1.sqlmodel_update(db_updated)
+            session.add(by_id1)
+            session.commit()
+            session.refresh(by_id1)
+      else:
+            raise HTTPException(status_code=404, detail = "not found")
+      return by_id1
+
 @router.delete("/students/{id}")
-async def remove_id():
+async def remove_id(id: int , session:SessionDep):
+      get_id= session.get(studentdb,id)
+      if get_id:
+         session.delete(get_id)
+         session.commit()
+      else:
+            raise HTTPException(status_code=404,detail = "not found")
       return {"message":"successfully done"}
 def welcome():
       return "hello all users"
