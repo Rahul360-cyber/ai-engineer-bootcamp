@@ -52,9 +52,10 @@ async def info_students(student_info1 : studentdb,session : SessionDep):
     session.refresh(student_info1)
     return student_info1
 
-@router.get("/students",dependencies=[Depends(logging_confirmation)])
-async def nome ():
-        return students_n
+@router.get("/students")
+async def nome (session :SessionDep):
+        pupils = session.exec(select(studentdb)).all()
+        return pupils
 
 @router.get("/profile",dependencies=[Depends(logging_confirmation)])
 async def sessions(session_id: Annotated[str | None , Cookie()] = None) :
