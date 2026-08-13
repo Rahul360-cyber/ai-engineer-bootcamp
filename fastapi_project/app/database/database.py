@@ -1,11 +1,15 @@
 from sqlmodel import create_engine,Field,Session,select,SQLModel
 from typing import Annotated
 from fastapi import Depends ,FastAPI
-sql_file_name = "studentdb.db"
-sqlite_url = f"sqlite:///{sql_file_name}"
+import psycopg
 
-connect_args = {"check_same_thread":False}
-engine = create_engine (sqlite_url,connect_args=connect_args)
+sql_file_name = "student_db.db"
+
+sqlite_url = f"sqlite:///{sql_file_name}"
+postgre_sqlite_url = f"postgresql+psycopg://postgres:Rahul%402000@localhost:5432/student_db"
+
+##connect_args = {"check_same_thread":False}
+engine = create_engine (postgre_sqlite_url,isolation_level="REPEATABLE READ")
 
 
 def base():
@@ -16,3 +20,4 @@ def get_db():
         yield session
 
 SessionDep = Annotated[Session, Depends(get_db) ]
+print(postgre_sqlite_url)
