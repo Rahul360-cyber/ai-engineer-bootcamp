@@ -2,14 +2,17 @@ from sqlmodel import create_engine,Field,Session,select,SQLModel
 from typing import Annotated
 from fastapi import Depends ,FastAPI
 import psycopg
+import os
+##sql_file_name = "student_db.db"
 
-sql_file_name = "student_db.db"
-
-sqlite_url = f"sqlite:///{sql_file_name}"
-postgre_sqlite_url = f"postgresql+psycopg://postgres:Rahul%402000@localhost:5432/student_db"
-
+##sqlite_url = f"sqlite:///{sql_file_name}"
+##postgre_sqlite_url = f"postgresql+psycopg://postgres:Rahul%402000@db:5432/student_db"
+database_url = os.getenv("DATABASE_URL")
 ##connect_args = {"check_same_thread":False}
-engine = create_engine (postgre_sqlite_url,isolation_level="REPEATABLE READ")
+if database_url is None:
+    raise RuntimeError("DATABASE_URL is not set")
+
+engine = create_engine(database_url)
 
 
 def base():
@@ -20,4 +23,3 @@ def get_db():
         yield session
 
 SessionDep = Annotated[Session, Depends(get_db) ]
-print(postgre_sqlite_url)

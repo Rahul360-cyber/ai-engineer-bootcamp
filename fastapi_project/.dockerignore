@@ -1,0 +1,18 @@
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+# Git
+.git/
+.gitignore
+
+# Environment variables / secrets
+.env
+
+# Local SQLite database
+*.db

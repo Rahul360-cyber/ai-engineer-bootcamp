@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlmodel
+SQLAlchemy
+psycopg
+psycopg-binary
+pwdlib
+PyJWT
+python-multipart
+pwdlib[argon2]

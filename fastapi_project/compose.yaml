@@ -1,0 +1,20 @@
+services:
+  api:
+   build: .
+   ports: 
+     - "8080:8080"
+   depends_on: 
+      - db
+   environment:
+      DATABASE_URL: postgresql+psycopg://postgres:Rahul%402000@db:5432/student_db
+
+  db:
+   image: postgres:17
+   environment:
+     POSTGRES_USER : postgres
+     POSTGRES_PASSWORD : Rahul@2000
+     POSTGRES_DB : student_db
+   volumes:
+      - postgres_data:/var/lib/postgresql/data
+volumes:
+   postgres_data:

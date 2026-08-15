@@ -42,7 +42,7 @@ def get_status(status:str):
 def pupil_id(student_id:int):
     return {"id":student_id}
 """
-students_n =[]
+
 
 @router.post("/info",status_code= status.HTTP_201_CREATED)
 
