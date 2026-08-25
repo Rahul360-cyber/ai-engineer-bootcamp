@@ -2,6 +2,8 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import os
 from google import genai
+import faiss
+
 path ="data/sample.txt"
 def load_docs(path):
     with open (path,"r",encoding ="utf-8") as file:
@@ -34,7 +36,24 @@ print(len(embeddings[0]))
 print(embeddings[0].shape)
 
 
-
+def retrieve_faiss(embeddings,question,chunk):
+    dimension = embeddings.shape[1]
+    embedding_faiss = embeddings.astype("float32")
+    faiss.normalize_L2(embedding_faiss)
+    index = faiss.IndexFlatIP(dimension)
+    index.add(embedding_faiss)
+    print (index.ntotal)
+    q_embeddings = model.encode([question]).astype("float32")
+    faiss.normalize_L2(q_embeddings)
+    scores,indices = index.search(q_embeddings,3)
+    print(scores)
+    print(indices)
+    
+    for i in indices[0]:
+        print(chunk[i])
+    
+    
+        
 
 def retrieve(question,embeddings,chunk,top_k = 3):
    s_score =[]
@@ -44,6 +63,8 @@ def retrieve(question,embeddings,chunk,top_k = 3):
         s_score.append(cos)
 
    ranked_indices = np.argsort(s_score)[::-1]
+ 
+       
    print(ranked_indices[0:top_k])
    for index in ranked_indices[0:top_k]:
        print("SCORE:", s_score[index])
@@ -54,17 +75,14 @@ def retrieve(question,embeddings,chunk,top_k = 3):
    top_chunks = []
 
    for index in ranked_indices[:top_k]:
-     top_chunks.append(chunk[index])
+     if s_score[index] > 0.80:
+        top_chunks.append(chunk[index])
+     elif not top_chunks:
+             return "i dont know based on the provided context"
    return top_chunks
 
 
-if __name__ == "__main__":
-    question = "What is the capital of Japan?"
-        
-    t_chunks = retrieve(question,embeddings,chunk,top_k = 3)
-    context = "\n\n".join(t_chunks)
-
-    def build_prompt(question,context):
+def build_prompt(question,context):
         prompt = f"""
         Answer the question only using the context below,
 
@@ -80,9 +98,18 @@ if __name__ == "__main__":
 
         print(prompt)
         return prompt
-    prompt = build_prompt(question,context)
-    client = genai.Client(api_key = os.environ["GEMINI_API_KEY"])
-    def generate_answer(prompt,client):
+
+def generate_answer(prompt,client):
         response = client.models.generate_content(model ="gemini-3.6-flash",contents = prompt)
         return response.text  
+
+
+if __name__ == "__main__":
+    question = "What is the capital of Japan?"
+        
+    t_chunks = retrieve(question,embeddings,chunk,top_k = 3)
+    t_chunks_ = retrieve_faiss(embeddings,question,chunk)
+    context = "\n\n".join(t_chunks_)
+    prompt = build_prompt(question,context)
+    client = genai.Client(api_key = os.environ["GEMINI_API_KEY"])
     print(generate_answer(prompt,client))
