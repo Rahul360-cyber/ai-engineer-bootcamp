@@ -30,11 +30,12 @@ def create_embeddings(chunk,model):
    embeddings_ = model.encode(chunk)
    return embeddings_
 embeddings = create_embeddings(chunk,model)
+"""
 print(embeddings.shape)
 print(embeddings[0])
 print(len(embeddings[0]))
 print(embeddings[0].shape)
-
+"""
 
 def retrieve_faiss(embeddings,question,chunk):
     dimension = embeddings.shape[1]
@@ -48,9 +49,15 @@ def retrieve_faiss(embeddings,question,chunk):
     scores,indices = index.search(q_embeddings,3)
     print(scores)
     print(indices)
-    
-    for i in indices[0]:
-        print(chunk[i])
+    top_chunks =[]
+    for i,score in zip (indices[0],scores[0]):
+        if scores > 0.30:
+           top_chunks.append(chunk[i])
+        
+    if not top_chunks:
+        return       
+    else:       
+        return top_chunks 
     
     
         
