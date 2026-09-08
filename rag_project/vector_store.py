@@ -24,7 +24,14 @@ def query_chunks(question,model,top_k=3):
    q_embeddings = model.encode([question])
 
    results = collection.query(query_embeddings=q_embeddings.tolist(),n_results = top_k)
-   return results
+   final_result =[]
+   for documents,metadata,distances in zip (results["documents"][0],results["metadatas"][0],results["distances"][0]):
+        if distances < 0.79:
+            result = {"documents": documents,
+                        "metadata":metadata,
+                        "distances": distances}
+            final_result.append(result)
+   return final_result
 
 
 ##results["documents"][0]
@@ -45,14 +52,13 @@ def chunk_pdf_pages(pages,source,chunk_size = 500,overlap = 50):
          start = 0
          end = start + chunk_size
          final_chunk=[]
-         chunks =[]
          for page in pages:
             start = 0
             text = page["text"]
             page_number = page["page"]
             while start < len(text):
               end = start + chunk_size
-              chunks.append(text[start:end])
+              chunks = text[start:end]
               start = end-overlap
               chunk_data ={
                 "text" : chunks,
@@ -65,7 +71,7 @@ def chunk_pdf_pages(pages,source,chunk_size = 500,overlap = 50):
 
 def create_embeddings(model,text):
            text = [item["text"] for item in text]
-           text_embeddings = model.encode([text])
+           text_embeddings = model.encode(text)
            return text_embeddings
          
 def store_chunks(chunk,embeddings):
