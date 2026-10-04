@@ -1,10 +1,18 @@
 import chromadb
 from rag import retrieve_faiss
 import chromadb
+import hashlib
+
 from pypdf import PdfReader
+
 client = chromadb.PersistentClient(path="./chroma_db")
 
 collection = client.get_or_create_collection(name="rag_documents")
+
+
+
+
+
 """
 def store_chunks(chunk,embeddings):
    ids = [f"chunk_{i}" for i in range(len(chunk))]
@@ -20,13 +28,17 @@ def store_chunks(chunk,embeddings):
 """
 print (collection.count())
 
+
 def query_chunks(question,model,top_k=3):
    q_embeddings = model.encode([question])
 
    results = collection.query(query_embeddings=q_embeddings.tolist(),n_results = top_k)
+   print("RAW DOCUMENTS:", results["documents"][0])
+   print("RAW METADATA:", results["metadatas"][0])
+   print("RAW DISTANCES:", results["distances"][0])
    final_result =[]
    for documents,metadata,distances in zip (results["documents"][0],results["metadatas"][0],results["distances"][0]):
-        if distances < 0.79:
+        if distances < 1.6:
             result = {"documents": documents,
                         "metadata":metadata,
                         "distances": distances}
@@ -74,12 +86,13 @@ def create_embeddings(model,text):
            text_embeddings = model.encode(text)
            return text_embeddings
          
-def store_chunks(chunk,embeddings):
+def store_chunks(chunk,embeddings,file_hash):
    documents = [item["text"] for item in chunk]
-   ids = [f"chunk_{i}" for i in range(len(chunk))]
+   ids = [f"{chunk[i]['source']}_chunk_{i}" for i in range(len(chunk))]
 
    metadatas= [{"SOURCE" :item["source"],
-                "page" : item["page"]}
+                "page" : item["page"],
+                "file_hash" : file_hash }
                for item in chunk]
 
    collection.add (ids =ids,
@@ -87,3 +100,24 @@ def store_chunks(chunk,embeddings):
                 embeddings = embeddings.tolist(),
                 metadatas = metadatas)
    print(collection.count())
+
+def document_exists(source):
+     existing = collection.get(where ={"SOURCE":source})
+     return len(existing["ids"]) > 0
+
+def meta_data_exists(file_hash):
+     old_hash = collection.get(where ={"file_hash":file_hash})
+     if old_hash == file_hash:
+         return True
+     else:
+         return False 
+
+def delete_document_source(source):
+      old_items =  collection.delete(where = {"SOURCE": source})
+      return True
+
+def same_documents_version(source,file_hash):
+    result = collection.get(where = {"$and" : [{"SOURCE": source},
+                                               {"file_hash": file_hash}]})
+
+    return len(result["ids"]) > 0
