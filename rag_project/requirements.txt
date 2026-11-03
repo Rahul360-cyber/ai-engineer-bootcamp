@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pydantic
+sentence-transformers
+chromadb
+google-genai
+pypdf
+numpy

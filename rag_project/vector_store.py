@@ -1,7 +1,8 @@
 import chromadb
-from rag import retrieve_faiss
+
 import chromadb
 import hashlib
+
 
 from pypdf import PdfReader
 
@@ -86,19 +87,23 @@ def create_embeddings(model,text):
            text_embeddings = model.encode(text)
            return text_embeddings
          
-def store_chunks(chunk,embeddings,file_hash):
+def store_chunks(chunk,embeddings,file_hash,CHUNKER_VERSION):
    documents = [item["text"] for item in chunk]
    ids = [f"{chunk[i]['source']}_chunk_{i}" for i in range(len(chunk))]
 
    metadatas= [{"SOURCE" :item["source"],
                 "page" : item["page"],
-                "file_hash" : file_hash }
-               for item in chunk]
+                "file_hash" : file_hash,
+                "chunker_version": CHUNKER_VERSION
+               }
+               for item in chunk
+              ]
 
    collection.add (ids =ids,
                 documents = documents,
                 embeddings = embeddings.tolist(),
-                metadatas = metadatas)
+                metadatas = metadatas
+                )
    print(collection.count())
 
 def document_exists(source):
@@ -116,8 +121,9 @@ def delete_document_source(source):
       old_items =  collection.delete(where = {"SOURCE": source})
       return True
 
-def same_documents_version(source,file_hash):
+def same_documents_version(source,file_hash,chunker_version):
     result = collection.get(where = {"$and" : [{"SOURCE": source},
-                                               {"file_hash": file_hash}]})
+                                               {"file_hash": file_hash},
+                                               {"chunker_version":chunker_version}]})
 
     return len(result["ids"]) > 0

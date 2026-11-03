@@ -1,0 +1,24 @@
+# Python environments
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets
+.env
+.env.*
+*.pem
+
+# Git
+.git/
+
+# Local vector database
+chroma_db/
+
+# Large local documents
+data/
+
+# Tests and temporary files
+tests/
+*.log

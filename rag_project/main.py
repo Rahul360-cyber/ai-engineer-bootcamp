@@ -1,3 +1,4 @@
+"""
 from pydantic import BaseModel
 from rag import load_docs,chunk_text,retrieve,build_prompt,generate_answer,retrieve_faiss
 from sentence_transformers import SentenceTransformer
@@ -6,20 +7,21 @@ import os
 from google import genai
 from vector_store import query_chunks,load_pdf,chunk_pdf_pages,create_embeddings,store_chunks,document_exists,meta_data_exists,delete_document_source,same_documents_version,collection
 from pypdf import PdfReader
+from ingestion import ingest_pdfs
 import hashlib
+CHUNKER_VERSION = "semantic_v1"
 
 
-"""
 path1 = "data/hyperspectral_project (2) (1).pdf"
 text = load_pdf(path1)
 print(text[0])
-"""
-"""
+
+
 delete_document_source("hyperspectral project.pdf")
 data = collection.get()
 for metadata in data["metadatas"]:
     print(metadata)
-"""
+
 def load_multiple_files(folders):
     pdf_files=[]
 
@@ -35,12 +37,6 @@ pdf_filess = load_multiple_files("data")
 
 print(pdf_filess)
 
-def get_file_hash(path):
-        with open(path,"rb") as file:
-            text = file.read()
-            hash_object = hashlib.sha256(text)
-            file_hash = hash_object.hexdigest()
-        return file_hash
 
 
 class QueryRequest(BaseModel):
@@ -49,42 +45,12 @@ class QueryRequest(BaseModel):
 
 app = FastAPI()
 
-def ingest_pdfs(pdf_filess,model):
-    for i in pdf_filess:
-        path = i
-        source = os.path.basename(path)
-        file_hash = get_file_hash(path)
-        if same_documents_version(source,file_hash):
-            print(f"{source} already exists.skipping")
-            continue
-        if document_exists(source):
-            delete_document_source(source)
-        text = load_pdf(path)
-       
-        for page in text:
-            print(
-                  "PAGE:", page["page"],
-                  "TEXT LENGTH:", len(page["text"]) if page["text"] else 0
-                 )
-            print(
-                 "PREVIEW:",
-                 repr(page["text"][:100]) if page["text"] else "NO TEXT"
-                 )
-        print("source:",source)
-        print("pages:", len(text))
-
-        chunk = chunk_pdf_pages(text, source)
-        print("chunks:",len(chunk))
-
-        embeddings = create_embeddings(model,chunk)
-        print("EMBEDDINGS SHAPE:", embeddings.shape)
-        store_chunks(chunk,embeddings,file_hash)
 
 model = SentenceTransformer("sentence-transformers/all-Minilm-l6-v2")
-ingest_pdfs(pdf_filess,model)
+#ingest_pdfs(pdf_filess,model,CHUNKER_VERSION)
 client = genai.Client(api_key = os.environ["GEMINI_API_KEY"])
 
-"""
+
 #path ="data/sample.txt"
 #docs = load_docs(path)
 path1 = "data/hyperspectral_project (2) (1).pdf"
@@ -120,7 +86,7 @@ for i,j in zip(documents,distances):
         top_chunks.append(i)
 print(top_chunks)
 print(results["distances"][0])
-"""
+
 @app.post("/query")
 async def query_rag(request:QueryRequest):
     ##t_chunks = retrieve(request.question,embeddings,chunk,top_k = 3)
@@ -138,7 +104,7 @@ async def query_rag(request:QueryRequest):
         source_info = {"sources":i["metadata"]["SOURCE"],
                        "pages": i["metadata"]["page"]}
         if source_info not in sources:
-            sources.append(sources_info)
+            sources.append(source_info)
     prompt = build_prompt(request.question,context)
     answer = generate_answer(prompt,client)
     return {"question" : request.question,
@@ -166,3 +132,128 @@ async def retrieve_chunk(request: QueryRequest):
     return {"retrieved chunks": context,
             "source":sources,
     }
+
+"""
+
+ 
+from functools import lru_cache
+
+from fastapi import FastAPI
+from pydantic import BaseModel
+from sentence_transformers import SentenceTransformer
+from google import genai
+import os
+
+from rag import build_prompt, generate_answer
+from vector_store import query_chunks
+from agent import run_agent
+from fastapi import HTTPException
+from google.genai.errors import serverError
+
+app = FastAPI(title="Document Intelligence RAG API")
+
+
+class QueryRequest(BaseModel):
+    question: str
+
+
+@lru_cache(maxsize=1)
+def get_embedding_model():
+    return SentenceTransformer(
+        "sentence-transformers/all-MiniLM-L6-v2"
+    )
+
+
+@lru_cache(maxsize=1)
+def get_gemini_client():
+    return genai.Client(
+        api_key=os.environ["GEMINI_API_KEY"]
+    )
+
+
+@app.post("/retrieve")
+async def retrieve_chunk(request: QueryRequest):
+    model = get_embedding_model()
+
+    t_chunks = query_chunks(
+        request.question,
+        model,
+        top_k=3
+    )
+
+    if not t_chunks:
+        return {
+            "question": request.question,
+            "answer": "I don't know based on the provided context.",
+            "sources": []
+        }
+
+    context = "\n\n".join(
+        item["documents"] for item in t_chunks
+    )
+
+    sources = []
+
+    for item in t_chunks:
+        sources.append({
+            "sources": item["metadata"]["SOURCE"],
+            "pages": item["metadata"]["page"],
+            "distances": item["distances"]
+        })
+
+    return {
+        "retrieved chunks": context,
+        "source": sources
+    }
+
+
+@app.post("/query")
+async def query_rag(request: QueryRequest):
+    model = get_embedding_model()
+
+    t_chunks = query_chunks(
+        request.question,
+        model,
+        top_k=3
+    )
+
+    if not t_chunks:
+        return {
+            "question": request.question,
+            "answer": "I don't know based on the provided context.",
+            "sources": []
+        }
+
+    context = "\n\n".join(
+        item["documents"] for item in t_chunks
+    )
+
+    sources = []
+
+    for item in t_chunks:
+        source_info = {
+            "sources": item["metadata"]["SOURCE"],
+            "pages": item["metadata"]["page"]
+        }
+
+        if source_info not in sources:
+            sources.append(source_info)
+
+    prompt = build_prompt(request.question, context)
+    client = get_gemini_client()
+    answer = generate_answer(prompt, client)
+
+    return {
+        "question": request.question,
+        "answer": answer,
+        "sources": sources
+    }
+@app.post("/agent/query")
+def agent_response(request : QueryRequest):
+       try:
+            response = run_agent(request.question)
+       except serverError as exc:
+            raise HTTPException(status_code=503,detail="the model is temporarily unavailable")
+
+       return {"question": request.question,
+                    "answer" : response}

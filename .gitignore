@@ -228,3 +228,14 @@ __pycache__/
 .vscode/
 =======
 >>>>>>> 8b6ed9a5bcffd3368bb05216fa855a9afebb9d44
+
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+chroma_db/
+data/
+*.pyc
