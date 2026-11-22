@@ -10,7 +10,7 @@ def run_agent(question:str) -> str:
     client = genai.Client(api_key = os.environ["GEMINI_API_KEY"])
     response = client.models.generate_content(model="gemini-3.8-flash",contents = question,config = types.GenerateContentConfig(tools =[search_documents]))
     return response.text
-    
+
 def run_agent_manually(question: str) -> str:
     client = genai.Client(
         api_key=os.environ["GEMINI_API_KEY"]
@@ -22,62 +22,69 @@ def run_agent_manually(question: str) -> str:
             disable=True
         )
     )
+
     max_iterations = 5
-    tool_rounds = 1
-    
+    tool_rounds = 0
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=question,
-        config=config)
-    
-    history =[]
-    history = [types.Content(role = "user",parts = [types.part.from_text(text=question)])]
-    while tool_rounds < max_iterations : 
+    # Initialize conversation history once
+    history = [
+        types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=question)]
+        )
+    ]
 
-                response = client.models.generate_content(
-                           model="gemini-2.5-flash",
-                           contents= history,
-                           config=config
-                            )
-                if not response.function_calls:
-                    return response.text or ""
-                function_call = response.function_calls[0]
-                if function_call.name != "search_documents":
-                    raise ValueError("unsupported tool request")
-                args = function_call.args or {}
-                query = args.get("query")
-                if not isinstance(query,str) or not query.strip():
-                    raise ValueError("Invalid search query")
+    while tool_rounds < max_iterations:
 
-                tool_result = search_documents(query)
-                tool_response = types.Part.from_function_response(
-                name="search_documents",
-                response={"result": tool_result}
-                )
-                history.append(response.candidates[0].content)
-                history.append(types.Content(role = "tool",parts = [tool_response]))
-                
-                tool_rounds = tool_rounds + 1
-                
-    contents = [types.Content(role = "user", parts = [types.Part.from_text(text=question)]),
-                response.candidates[0].content,
-                types.Content(role="tool",parts = [tool_response])]
-    
-    tool_rounds =  tool_rounds + 1
-    
-    next_response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=contents,
-        config=config
+        # Ask Gemini to respond based on the full conversation
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=history,
+            config=config
+        )
+
+        # If Gemini gives a final answer, stop
+        if not response.function_calls:
+            return response.text or ""
+
+        # Validate the requested tool
+        function_call = response.function_calls[0]
+
+        if function_call.name != "search_documents":
+            raise ValueError("Unsupported tool request")
+
+        args = function_call.args or {}
+        query = args.get("query")
+
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("Invalid search query")
+
+        # Execute our approved Python tool
+        tool_result = search_documents(query)
+
+        # Package the result for Gemini
+        tool_response = types.Part.from_function_response(
+            name="search_documents",
+            response={"result": tool_result}
+        )
+
+        # Preserve the model's request and the tool's response
+        history.append(response.candidates[0].content)
+
+        history.append(
+            types.Content(
+                role="tool",
+                parts=[tool_response]
+            )
+        )
+
+        # Count the completed tool-execution round
+        tool_rounds += 1
+
+    raise RuntimeError(
+        "Agent stopped: maximum tool-execution rounds reached."
     )
 
-    print("FUNCTION CALLS:", response.function_calls)
-
-    if not next_response.function_calls:
-        return next_response.text or ""
-
-    return "Tool call requested; loop not implemented yet."
 @lru_cache(maxsize=1)
 def get_embedding_model():
     return SentenceTransformer(
